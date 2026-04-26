@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ESP32 Incubator Dashboard</title>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg:        #0f1117;
+      --surface:   #181c26;
+      --surface2:  #1f2433;
+      --border:    rgba(255,255,255,0.07);
+      --border2:   rgba(255,255,255,0.13);
+      --text:      #e8eaf0;
+      --muted:     #7a8099;
+      --accent:    #f97316;
+      --accent2:   #fb923c;
+      --blue:      #60a5fa;
+      --green:     #4ade80;
+      --red:       #f87171;
+      --yellow:    #fbbf24;
+      --mono:      'DM Mono', monospace;
+      --sans:      'Sora', sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* ── HEADER ── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 28px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: -0.3px;
+    }
+    .logo-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 8px var(--accent);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.4; }
+    }
+    .conn-badge {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(74,222,128,0.1);
+      color: var(--green);
+      border: 1px solid rgba(74,222,128,0.2);
+    }
+    .conn-badge.offline {
+      background: rgba(248,113,113,0.1);
+      color: var(--red);
+      border-color: rgba(248,113,113,0.2);
+    }
+
+    /* ── MAIN LAYOUT ── */
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 28px 20px;
+      display: grid;
+      gap: 16px;
+    }
+
+    /* ── METRIC CARDS ── */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    @media (max-width: 680px) {
+      .metrics { grid-template-columns: 1fr 1fr; }
+    }
+    .metric-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+    }
+    .metric-label {
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .metric-value {
+      font-family: var(--mono);
+      font-size: 28px;
+      font-weight: 500;
+      line-height: 1;
+    }
+    .metric-sub {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 6px;
+    }
+    .metric-sub span {
+      color: var(--accent2);
+      font-family: var(--mono);
+    }
+
+    /* ── SECTION CARD ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .card-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-title .tag {
+      font-family: var(--mono);
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: rgba(249,115,22,0.12);
+      color: var(--accent2);
+      border: 1px solid rgba(249,115,22,0.2);
+    }
+    .card-body { padding: 20px; }
+
+    /* ── GRID 2-COL ── */
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    @media (max-width: 580px) {
+      .grid2 { grid-template-columns: 1fr; }
+    }
+
+    /* ── FORM ROWS ── */
+    .form-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .form-row:last-child { margin-bottom: 0; }
+    label.fl {
+      font-size: 12px;
+      color: var(--muted);
+      min-width: 110px;
+    }
+    input[type="number"], input[type="time"], select {
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 7px 10px;
+      outline: none;
+      width: 110px;
+      transition: border-color .2s;
+    }
+    input[type="number"]:focus,
+    input[type="time"]:focus,
+    select:focus {
+      border-color: var(--accent);
+    }
+    select { width: auto; padding-right: 28px; }
+
+    /* ── RANGE SLIDER ── */
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .slider-row label {
+      font-size: 12px;
+      color: var(--muted);
+      min-width: 110px;
+    }
+    input[type="range"] {
+      flex: 1;
+      -webkit-appearance: none;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      box-shadow: 0 0 6px rgba(249,115,22,0.5);
+    }
+    .slider-val {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 500;
+      min-width: 60px;
+      text-align: right;
+      color: var(--text);
+    }
+    .slider-manual {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding-left: 122px;
+    }
+    .slider-manual input[type="number"] {
+      width: 80px;
+    }
+    .slider-manual span {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    /* ── PATH BADGE ── */
+    .path-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+    .path-badge b { color: var(--blue); font-weight: 400; }
+
+    /* ── PREVIEW COMPARE ── */
+    .preview-strip {
+      display: flex;
+      gap: 10px;
+      margin: 16px 0 0;
+      padding: 12px 14px;
+      background: var(--surface2);
+      border-radius: 10px;
+      border: 1px solid var(--border);
+    }
+    .preview-item {
+      flex: 1;
+      text-align: center;
+    }
+    .preview-item .pl { font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+    .preview-item .pv {
+      font-family: var(--mono);
+      font-size: 18px;
+      font-weight: 500;
+    }
+    .preview-divider {
+      width: 1px;
+      background: var(--border);
+    }
+
+    /* ── RELAY INDICATORS ── */
+    .relay-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .relay-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .relay-name {
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .relay-state {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+    .relay-on  { background: rgba(74,222,128,0.12); color: var(--green); border: 1px solid rgba(74,222,128,0.25); }
+    .relay-off { background: rgba(122,128,153,0.12); color: var(--muted); border: 1px solid var(--border2); }
+
+    /* ── TOGGLE SWITCH ── */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .toggle-label { font-size: 13px; color: var(--text); }
+    .toggle {
+      position: relative;
+      width: 40px; height: 22px;
+    }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-track {
+      position: absolute; inset: 0;
+      border-radius: 11px;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      cursor: pointer;
+      transition: background .2s;
+    }
+    .toggle input:checked + .toggle-track {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .toggle-track::after {
+      content: '';
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--text);
+      transition: transform .2s;
+    }
+    .toggle input:checked + .toggle-track::after {
+      transform: translateX(18px);
+    }
+
+    /* ── BUTTONS ── */
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 18px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid var(--border2);
+      transition: all .15s;
+    }
+    .btn-primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .btn-primary:hover { background: var(--accent2); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--muted);
+    }
+    .btn-ghost:hover {
+      background: var(--surface2);
+      color: var(--text);
+    }
+    .btn:active { transform: scale(0.97); }
+
+    /* ── STATUS MESSAGE ── */
+    .status-msg {
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      opacity: 0;
+      transition: opacity .3s;
+    }
+    .status-msg.show { opacity: 1; }
+    .status-msg.ok   { color: var(--green); background: rgba(74,222,128,0.08); }
+    .status-msg.err  { color: var(--red);   background: rgba(248,113,113,0.08); }
+
+    /* ── SECTION DIVIDER ── */
+    .section-sep {
+      height: 1px;
+      background: var(--border);
+      margin: 18px 0;
+    }
+
+    /* ── LAST UPDATE ── */
+    .last-update {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--muted);
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    ESP32 Incubator
+  </div>
+  <div id="conn-status" class="conn-badge offline">● offline</div>
+</header>
+
+<main>
+
+  <!-- SENSOR METRICS -->
+  <div class="metrics">
+    <div class="metric-card">
+      <div class="metric-label">Suhu</div>
+      <div class="metric-value" id="m-temp" style="color:var(--accent)">—</div>
+      <div class="metric-sub">raw: <span id="m-temp-raw">—</span></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Kelembaban</div>
+      <div class="metric-value" id="m-hum" style="color:var(--blue)">—</div>
+      <div class="metric-sub">raw: <span id="m-hum-raw">—</span></div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Heater</div>
+      <div class="metric-value" id="m-heater" style="font-size:18px;padding-top:6px">—</div>
+      <div class="metric-sub" id="m-last">—</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-label">Fan</div>
+      <div class="metric-value" id="m-fan" style="font-size:18px;padding-top:6px">—</div>
+      <div class="metric-sub">relay status</div>
+    </div>
+  </div>
+
+  <!-- KALIBRASI -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">
+        Kalibrasi Sensor DHT22
+        <span class="tag">Firebase /calibration</span>
+      </div>
+    </div>
+    <div class="card-body">
+
+      <!-- SUHU -->
+      <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Offset Suhu</p>
+
+      <div class="slider-row">
+        <label>Offset suhu</label>
+        <input type="range" id="temp-slider" min="-5" max="5" step="0.1" value="0" oninput="onTempSlider(this.value)">
+        <span class="slider-val" id="temp-slider-val">0.0 °C</span>
+      </div>
+      <div class="slider-manual">
+        <input type="number" id="temp-manual" value="0" step="0.1" min="-5" max="5" onchange="onTempManual(this.value)">
+        <span>°C &nbsp;(−5 s/d +5)</span>
+      </div>
+      <div class="path-badge">path: <b>/calibration/temp_offset</b></div>
+
+      <div class="section-sep"></div>
+
+      <!-- KELEMBABAN -->
+      <p style="font-size:12px;color:var(--muted);margin-bottom:12px;">Offset Kelembaban</p>
+
+      <div class="slider-row">
+        <label>Offset kelembaban</label>
+        <input type="range" id="hum-slider" min="-10" max="10" step="0.5" value="0" oninput="onHumSlider(this.value)">
+        <span class="slider-val" id="hum-slider-val">0.0 %</span>
+      </div>
+      <div class="slider-manual">
+        <input type="number" id="hum-manual" value="0" step="0.5" min="-10" max="10" onchange="onHumManual(this.value)">
+        <span>% &nbsp;(−10 s/d +10)</span>
+      </div>
+      <div class="path-badge">path: <b>/calibration/hum_offset</b></div>
+
+      <!-- PREVIEW -->
+      <div class="preview-strip" id="preview-strip">
+        <div class="preview-item">
+          <div class="pl">suhu raw</div>
+          <div class="pv" id="prev-raw-t" style="color:var(--muted)">—</div>
+        </div>
+        <div class="preview-divider"></div>
+        <div class="preview-item">
+          <div class="pl">+ offset</div>
+          <div class="pv" id="prev-off-t" style="color:var(--accent2)">0.0 °C</div>
+        </div>
+        <div class="preview-divider"></div>
+        <div class="preview-item">
+          <div class="pl">hasil</div>
+          <div class="pv" id="prev-cal-t" style="color:var(--accent)">—</div>
+        </div>
+        <div class="preview-divider"></div>
+        <div class="preview-item">
+          <div class="pl">hum raw</div>
+          <div class="pv" id="prev-raw-h" style="color:var(--muted)">—</div>
+        </div>
+        <div class="preview-divider"></div>
+        <div class="preview-item">
+          <div class="pl">+ offset</div>
+          <div class="pv" id="prev-off-h" style="color:var(--blue)">0.0 %</div>
+        </div>
+        <div class="preview-divider"></div>
+        <div class="preview-item">
+          <div class="pl">hasil</div>
+          <div class="pv" id="prev-cal-h" style="color:var(--blue)">—</div>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="saveCalibration()">Simpan Kalibrasi</button>
+        <button class="btn btn-ghost" onclick="resetCalibration()">Reset ke 0</button>
+        <span class="status-msg" id="cal-status"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- JADWAL & TARGET -->
+  <div class="grid2">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Jadwal Aktif</div>
+      </div>
+      <div class="card-body">
+        <div class="form-row">
+          <label class="fl">Mulai</label>
+          <input type="time" id="start-time" value="06:00">
+        </div>
+        <div class="form-row">
+          <label class="fl">Selesai</label>
+          <input type="time" id="end-time" value="18:00">
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="saveSchedule()">Simpan</button>
+          <span class="status-msg" id="sched-status"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">Target & Mode</div>
+      </div>
+      <div class="card-body">
+        <div class="form-row">
+          <label class="fl">Target suhu</label>
+          <input type="number" id="target-temp" value="37" step="0.5" min="20" max="50"> °C
+        </div>
+        <div class="form-row">
+          <label class="fl">Mode</label>
+          <select id="mode-select">
+            <option value="0">Auto</option>
+            <option value="1">Manual</option>
+          </select>
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="saveControl()">Simpan</button>
+          <span class="status-msg" id="ctrl-status"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MANUAL KONTROL -->
+  <div class="card" id="manual-panel">
+    <div class="card-header">
+      <div class="card-title">
+        Kontrol Manual
+        <span class="tag">mode = 1</span>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="toggle-row">
+        <span class="toggle-label">Heater</span>
+        <label class="toggle">
+          <input type="checkbox" id="tog-heater" onchange="sendManual('heater', this.checked)">
+          <div class="toggle-track"></div>
+        </label>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-label">Fan</span>
+        <label class="toggle">
+          <input type="checkbox" id="tog-fan" onchange="sendManual('fan', this.checked)">
+          <div class="toggle-track"></div>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="last-update" id="last-update">Belum terhubung ke Firebase</div>
+
+</main>
+
+<script>
+  // ╔═══════════════════════════════════════╗
+  // ║  GANTI DENGAN KONFIGURASI FIREBASE    ║
+  // ╚═══════════════════════════════════════╝
+  const firebaseConfig = {
+    apiKey:      "MASUKKAN_API_KEY",
+    authDomain:  "MASUKKAN_AUTH_DOMAIN",
+    databaseURL: "MASUKKAN_DATABASE_URL",
+    projectId:   "MASUKKAN_PROJECT_ID",
+  };
+  // ════════════════════════════════════════
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  let rawTempVal = null;
+  let rawHumVal  = null;
+  let tempOff = 0.0;
+  let humOff  = 0.0;
+
+  // ── HELPER ──────────────────────────────
+  function clamp(v, mn, mx) { return Math.min(mx, Math.max(mn, v)); }
+
+  function showStatus(id, msg, type) {
+    const el = document.getElementById(id);
+    el.textContent = msg;
+    el.className = 'status-msg show ' + type;
+    setTimeout(() => el.className = 'status-msg', 3000);
+  }
+
+  // ── SLIDER / MANUAL INPUT ────────────────
+  function onTempSlider(v) {
+    tempOff = parseFloat(v);
+    document.getElementById('temp-slider-val').textContent = tempOff.toFixed(1) + ' °C';
+    document.getElementById('temp-manual').value = tempOff.toFixed(1);
+    updatePreview();
+  }
+
+  function onTempManual(v) {
+    const clamped = clamp(parseFloat(v) || 0, -5, 5);
+    tempOff = clamped;
+    document.getElementById('temp-slider').value = clamped;
+    document.getElementById('temp-slider-val').textContent = clamped.toFixed(1) + ' °C';
+    document.getElementById('temp-manual').value = clamped.toFixed(1);
+    updatePreview();
+  }
+
+  function onHumSlider(v) {
+    humOff = parseFloat(v);
+    document.getElementById('hum-slider-val').textContent = humOff.toFixed(1) + ' %';
+    document.getElementById('hum-manual').value = humOff.toFixed(1);
+    updatePreview();
+  }
+
+  function onHumManual(v) {
+    const clamped = clamp(parseFloat(v) || 0, -10, 10);
+    humOff = clamped;
+    document.getElementById('hum-slider').value = clamped;
+    document.getElementById('hum-slider-val').textContent = clamped.toFixed(1) + ' %';
+    document.getElementById('hum-manual').value = clamped.toFixed(1);
+    updatePreview();
+  }
+
+  function updatePreview() {
+    const tSign = tempOff >= 0 ? '+' : '';
+    const hSign = humOff  >= 0 ? '+' : '';
+
+    document.getElementById('prev-off-t').textContent = tSign + tempOff.toFixed(1) + ' °C';
+    document.getElementById('prev-off-h').textContent = hSign + humOff.toFixed(1)  + ' %';
+
+    if (rawTempVal !== null) {
+      const calT = rawTempVal + tempOff;
+      const calH = clamp(rawHumVal + humOff, 0, 100);
+      document.getElementById('prev-cal-t').textContent = calT.toFixed(1) + ' °C';
+      document.getElementById('prev-cal-h').textContent = calH.toFixed(1) + ' %';
+    }
+  }
+
+  // ── SAVE CALIBRATION ────────────────────
+  function saveCalibration() {
+    db.ref('/calibration').set({
+      temp_offset: tempOff,
+      hum_offset:  humOff
+    }).then(() => {
+      showStatus('cal-status', '✓ Tersimpan', 'ok');
+    }).catch(err => {
+      showStatus('cal-status', '✗ ' + err.message, 'err');
+    });
+  }
+
+  function resetCalibration() {
+    onTempManual(0);
+    onHumManual(0);
+    showStatus('cal-status', '↺ Di-reset ke 0', 'ok');
+  }
+
+  // ── SAVE SCHEDULE ────────────────────────
+  function saveSchedule() {
+    const start = document.getElementById('start-time').value.split(':');
+    const end   = document.getElementById('end-time').value.split(':');
+
+    db.ref('/control').update({
+      start_hour:   parseInt(start[0]),
+      start_minute: parseInt(start[1]),
+      end_hour:     parseInt(end[0]),
+      end_minute:   parseInt(end[1]),
+    }).then(() => {
+      showStatus('sched-status', '✓ Tersimpan', 'ok');
+    }).catch(err => {
+      showStatus('sched-status', '✗ ' + err.message, 'err');
+    });
+  }
+
+  // ── SAVE CONTROL ─────────────────────────
+  function saveControl() {
+    const target = parseFloat(document.getElementById('target-temp').value);
+    const mode   = parseInt(document.getElementById('mode-select').value);
+
+    db.ref('/control').update({
+      target_temp: target,
+      mode:        mode,
+    }).then(() => {
+      showStatus('ctrl-status', '✓ Tersimpan', 'ok');
+      document.getElementById('manual-panel').style.opacity = mode === 1 ? '1' : '0.4';
+    }).catch(err => {
+      showStatus('ctrl-status', '✗ ' + err.message, 'err');
+    });
+  }
+
+  // ── MANUAL RELAY ─────────────────────────
+  function sendManual(relay, val) {
+    db.ref('/manual/' + relay).set(val ? 1 : 0);
+  }
+
+  // ── REALTIME LISTENERS ───────────────────
+
+  // Sensor
+  db.ref('/sensor').on('value', snap => {
+    const d = snap.val() || {};
+
+    rawTempVal = d.temperature_raw ?? d.temperature ?? null;
+    rawHumVal  = d.humidity_raw    ?? d.humidity    ?? null;
+
+    const tempCal = d.temperature ?? null;
+    const humCal  = d.humidity    ?? null;
+
+    if (tempCal !== null) {
+      document.getElementById('m-temp').textContent = tempCal.toFixed(1) + ' °C';
+    }
+    if (humCal !== null) {
+      document.getElementById('m-hum').textContent = humCal.toFixed(1) + ' %';
+    }
+    if (rawTempVal !== null) {
+      document.getElementById('m-temp-raw').textContent = rawTempVal.toFixed(1) + ' °C';
+      document.getElementById('prev-raw-t').textContent = rawTempVal.toFixed(1) + ' °C';
+    }
+    if (rawHumVal !== null) {
+      document.getElementById('m-hum-raw').textContent = rawHumVal.toFixed(1) + ' %';
+      document.getElementById('prev-raw-h').textContent = rawHumVal.toFixed(1) + ' %';
+    }
+
+    updatePreview();
+    document.getElementById('last-update').textContent =
+      'Diperbarui: ' + new Date().toLocaleTimeString('id-ID');
+  });
+
+  // Relay
+  db.ref('/relay').on('value', snap => {
+    const d = snap.val() || {};
+    const heaterOn = d.heater === 1;
+    const fanOn    = d.fan    === 1;
+
+    const mh = document.getElementById('m-heater');
+    mh.textContent = heaterOn ? 'ON' : 'OFF';
+    mh.style.color = heaterOn ? 'var(--accent)' : 'var(--muted)';
+
+    const mf = document.getElementById('m-fan');
+    mf.textContent = fanOn ? 'ON' : 'OFF';
+    mf.style.color = fanOn ? 'var(--green)' : 'var(--muted)';
+  });
+
+  // Kontrol (populate form)
+  db.ref('/control').on('value', snap => {
+    const d = snap.val() || {};
+    if (d.start_hour   !== undefined) {
+      const sh = String(d.start_hour).padStart(2,'0');
+      const sm = String(d.start_minute).padStart(2,'0');
+      document.getElementById('start-time').value = sh + ':' + sm;
+    }
+    if (d.end_hour !== undefined) {
+      const eh = String(d.end_hour).padStart(2,'0');
+      const em = String(d.end_minute).padStart(2,'0');
+      document.getElementById('end-time').value = eh + ':' + em;
+    }
+    if (d.target_temp !== undefined) {
+      document.getElementById('target-temp').value = d.target_temp;
+    }
+    if (d.mode !== undefined) {
+      document.getElementById('mode-select').value = d.mode;
+      document.getElementById('manual-panel').style.opacity = d.mode === 1 ? '1' : '0.4';
+    }
+  });
+
+  // Kalibrasi (populate slider dari Firebase)
+  db.ref('/calibration').on('value', snap => {
+    const d = snap.val() || {};
+    if (d.temp_offset !== undefined) onTempManual(d.temp_offset);
+    if (d.hum_offset  !== undefined) onHumManual(d.hum_offset);
+  });
+
+  // Manual
+  db.ref('/manual').on('value', snap => {
+    const d = snap.val() || {};
+    document.getElementById('tog-heater').checked = d.heater === 1;
+    document.getElementById('tog-fan').checked    = d.fan    === 1;
+  });
+
+  // Koneksi
+  db.ref('.info/connected').on('value', snap => {
+    const el = document.getElementById('conn-status');
+    if (snap.val()) {
+      el.textContent = '● online';
+      el.className   = 'conn-badge';
+    } else {
+      el.textContent = '● offline';
+      el.className   = 'conn-badge offline';
+    }
+  });
+</script>
+
+</body>
+</html>
